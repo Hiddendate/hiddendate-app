@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bảng Tính Thông Tin Ngày Tháng (Nâng cấp AI)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .table-cell {
+            padding: 1rem;
+            border: 1px solid #e2e8f0;
+            text-align: center;
+            vertical-align: middle;
+        }
+        .header-cell {
+            background-color: #f8fafc;
+            font-weight: 600;
+            color: #1e293b;
+        }
+        #gemini-output h2, #gemini-output h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            color: #1e293b;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.25rem;
+        }
+         #gemini-output h3 {
+            font-size: 1.1rem;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+            border-bottom: none;
+            font-weight: 500;
+            color: #475569;
+         }
+        #gemini-output ul {
+            list-style-position: inside;
+            padding-left: 1rem;
+        }
+        #gemini-output li {
+            margin-bottom: 0.5rem;
+        }
+         #gemini-output strong {
+            color: #4c51bf;
+         }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-6xl bg-white rounded-xl shadow-lg p-6 md:p-8">
+        <h1 class="text-2xl md:text-3xl font-bold text-center text-gray-700 mb-6">Bảng Tính Thông Tin Ngày Tháng</h1>
+
+        <!-- Input Section -->
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
+            <input type="date" id="date-input" class="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            <button id="today-btn" class="w-full sm:w-auto bg-blue-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-blue-700 transition duration-200 shadow">Hôm Nay</button>
+        </div>
+
+        <!-- Results Table -->
+        <div class="overflow-x-auto">
+            <table class="w-full border-collapse rounded-lg overflow-hidden">
+                <thead>
+                    <tr>
+                        <th colspan="5" class="table-cell header-cell bg-blue-100 text-blue-800">Dương Lịch</th>
+                        <th colspan="3" class="table-cell header-cell bg-green-100 text-green-800">Âm Lịch</th>
+                    </tr>
+                    <tr>
+                        <th class="table-cell header-cell">Ngày</th>
+                        <th class="table-cell header-cell">Số thứ tự ngày</th>
+                        <th class="table-cell header-cell">Số ngày còn lại</th>
+                        <th class="table-cell header-cell">Số tuần</th>
+                        <th class="table-cell header-cell">% của năm</th>
+                        <th class="table-cell header-cell">Ngày</th>
+                        <th class="table-cell header-cell">Số thứ tự ngày</th>
+                        <th class="table-cell header-cell">Số ngày còn lại</th>
+                    </tr>
+                </thead>
+                <tbody id="result-body">
+                    <!-- Data will be populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+        <div id="loading-table" class="text-center p-8 text-gray-500 hidden">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p>Đang tính toán...</p>
+        </div>
+
+        <!-- Gemini API Section -->
+        <div class="mt-8 text-center">
+             <button id="gemini-btn" class="bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-bold py-3 px-8 rounded-full hover:from-purple-600 hover:to-indigo-700 transition duration-300 shadow-lg transform hover:scale-105">
+                ✨ Khám phá thêm về ngày này
+            </button>
+        </div>
+
+        <div id="gemini-result-container" class="mt-6 p-6 bg-gray-50 rounded-lg border border-gray-200 hidden">
+             <div id="loading-gemini" class="text-center p-8 text-gray-500 hidden">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                <p class="mt-2">✨ Gemini đang suy nghĩ... Xin chờ trong giây lát.</p>
+            </div>
+            <div id="gemini-output"></div>
+        </div>
+
+    </div>
+
+    <script>
+        // DOM Elements
+        const dateInput = document.getElementById('date-input');
+        const todayBtn = document.getElementById('today-btn');
+        const resultBody = document.getElementById('result-body');
+        const loadingTable = document.getElementById('loading-table');
+        const geminiBtn = document.getElementById('gemini-btn');
+        const geminiResultContainer = document.getElementById('gemini-result-container');
+        const loadingGemini = document.getElementById('loading-gemini');
+        const geminiOutput = document.getElementById('gemini-output');
+
+        // --- Lunar Calendar Conversion Logic (unchanged) ---
+        const LUNAR_INFO=[0x04bd8,0x04ae0,0x0a570,0x054d5,0x0d260,0x0d950,0x16554,0x056a0,0x09ad0,0x055d2,0x04ae0,0x0a5b6,0x0a4d0,0x0d250,0x1d255,0x0b540,0x0d6a0,0x0ada2,0x095b0,0x14977,0x04970,0x0a4b0,0x0b4b5,0x06a50,0x06d40,0x1ab54,0x02b60,0x09570,0x052f2,0x04970,0x06566,0x0d4a0,0x0ea50,0x06e95,0x05ad0,0x02b60,0x186e3,0x092e0,0x1c8d7,0x0c950,0x0d4a0,0x1d8a6,0x0b550,0x056a0,0x1a5b4,0x025d0,0x092d0,0x0d2b2,0x0a950,0x0b557,0x06ca0,0x0b550,0x15355,0x04da0,0x0a5d0,0x14573,0x052d0,0x0a9a8,0x0e950,0x06aa0,0x0aea6,0x0ab50,0x04b60,0x0aae4,0x0a570,0x05260,0x0f263,0x0d950,0x05b57,0x056a0,0x096d0,0x04dd5,0x04ad0,0x0a4d0,0x0d4d4,0x0d250,0x0d558,0x0b540,0x0b5a0,0x195a6,0x095b0,0x049b0,0x0a974,0x0a4b0,0x0b27a,0x06a50,0x06d40,0x0af46,0x0ab60,0x09570,0x04af5,0x04970,0x064b0,0x074a3,0x0ea50,0x06b58,0x055c0,0x0ab60,0x096d5,0x092e0,0x0c960,0x0d954,0x0d4a0,0x0da50,0x07552,0x056a0,0x0abb7,0x025d0,0x092d0,0x0cab5,0x0a950,0x0b4a0,0x0baa4,0x0ad50,0x055d9,0x04ba0,0x0a5b0,0x15176,0x052b0,0x0a930,0x07954,0x06aa0,0x0ad50,0x05b52,0x04b60,0x0a6e6,0x0a4e0,0x0d260,0x0ea65,0x0d530,0x05aa0,0x076a3,0x096d0,0x04bd7,0x04ad0,0x0a4d0,0x1d0b6,0x0d250,0x0d520,0x0dd45,0x0b5a0,0x056d0,0x055b2,0x049b0,0x0a577,0x0a4b0,0x0aa50,0x1b255,0x06d20,0x0ada0,0x14b63,0x09370,0x049f8,0x04970,0x0a4b0,0x164b5,0x06a50,0x06d40,0x1ab54,0x02b60,0x09570,0x052f2,0x04970,0x06566,0x0d4a0,0x0ea50,0x06e95,0x05ad0,0x02b60,0x186e3,0x092e0,0x1c8d7,0x0c950,0x0d4a0,0x1d8a6,0x0b550,0x056a0,0x1a5b4,0x025d0,0x092d0,0x0d2b2,0x0a950,0x0b557,0x06ca0,0x0b550,0x15355,0x04da0,0x0a5b0,0x14573,0x052d0,0x0a9a8,0x0e950,0x06aa0,0x0aea6,0x0ab50,0x04b60,0x0aae4,0x0a570,0x05260,0x0f263,0x0d950,0x05b57,0x056a0,0x096d0,0x04dd5,0x04ad0,0x0a4d0,0x0d4d4,0x0d250,0x0d558,0x0b540,0x0b5a0,0x195a6,0x095b0,0x049b0,0x0a974,0x0a4b0,0x0b27a,0x06a50,0x06d40,0x0af46,0x0ab60,0x09570,0x04af5,0x04970,0x064b0,0x074a3,0x0ea50,0x06b58,0x055c0,0x0ab60,0x096d5,0x092e0,0x0c960,0x0d954,0x0d4a0,0x0da50,0x07552,0x056a0,0x0abb7,0x025d0,0x092d0,0x0cab5,0x0a950,0x0b4a0,0x0baa4,0x0ad50,0x055d9,0x04ba0,0x0a5b0,0x15176,0x052b0,0x0a930,0x07954,0x06aa0,0x0ad50,0x05b52,0x04b60,0x0a6e6,0x0a4e0,0x0d260,0x0ea65,0x0d530,0x05aa0,0x076a3,0x096d0,0x04bd7,0x04ad0,0x0a4d0,0x1d0b6,0x0d250,0x0d520,0x0dd45,0x0b5a0,0x056d0,0x055b2,0x049b0,0x0a577,0x0a4b0,0x0aa50,0x1b255,0x06d20,0x0ada0];
+        function getLunarYearDays(a){let c=348;for(let b=32768;b>8;b>>=1)c+=(LUNAR_INFO[a-1900]&b)?1:0;return c+getLunarLeapMonthDays(a)}function getLunarLeapMonth(a){return LUNAR_INFO[a-1900]&15}function getLunarLeapMonthDays(a){return getLunarLeapMonth(a)?(LUNAR_INFO[a-1900]&65536)?30:29:0}function getLunarMonthDays(a,c){return LUNAR_INFO[a-1900]&(65536>>c)?30:29}function getLunarDate(a){let d=new Date(a),f=d.getTimezoneOffset()*6e4,g=new Date(1900,0,31),h=Math.floor((d.getTime()-f-g.getTime())/864e5),b,e,k,l;for(b=1900;b<2100&&h>=0;b++){l=getLunarYearDays(b);if(h<l)break;h-=l}let m=getLunarLeapMonth(b),n=!1;for(e=1;e<=12;e++){if(m>0&&e==m+1&&!n){--e;n=!0;daysInMonth=getLunarLeapMonthDays(b)}else daysInMonth=getLunarMonthDays(b,e);if(h<daysInMonth)break;h-=daysInMonth}k=h+1;let p=0;for(let q=1900;q<b;q++)p+=getLunarYearDays(q);let r=h+1;for(let s=1;s<e;s++)r+=getLunarMonthDays(b,s);m&&e>m&&(r+=getLunarLeapMonthDays(b));return{year:b,month:e,day:k,isLeap:n&&(e===m),dayOfYear:r,totalDaysInYear:getLunarYearDays(b)}}
+
+        // --- Main Calculation Function ---
+        function calculateAndDisplay(dateString) {
+            loadingTable.classList.remove('hidden');
+            resultBody.innerHTML = '';
+            geminiResultContainer.classList.add('hidden'); // Hide gemini results on new date
+            geminiOutput.innerHTML = '';
+
+
+            setTimeout(() => {
+                const date = new Date(dateString + 'T00:00:00'); 
+                if (isNaN(date.getTime())) {
+                    resultBody.innerHTML = `<tr><td colspan="8" class="table-cell text-red-500">Ngày không hợp lệ. Vui lòng thử lại.</td></tr>`;
+                    loadingTable.classList.add('hidden');
+                    return;
+                }
+
+                // Gregorian Calculations
+                const startOfYear = new Date(date.getFullYear(), 0, 0);
+                const diff = date - startOfYear;
+                const oneDay = 1000 * 60 * 60 * 24;
+                const dayOfYear = Math.floor(diff / oneDay);
+                const isLeapYear = (date.getFullYear() % 4 === 0 && date.getFullYear() % 100 !== 0) || (date.getFullYear() % 400 === 0);
+                const totalDaysInYear = isLeapYear ? 366 : 365;
+                const daysRemaining = totalDaysInYear - dayOfYear;
+                const weekNumber = Math.ceil(dayOfYear / 7);
+                const yearPercentage = ((dayOfYear / totalDaysInYear) * 100).toFixed(2);
+
+                // Lunar Calculations
+                const lunar = getLunarDate(date);
+                const lunarDaysRemaining = lunar.totalDaysInYear - lunar.dayOfYear;
+                const lunarDateString = `Ngày ${lunar.day} tháng ${lunar.month}${lunar.isLeap ? ' (nhuận)' : ''}, năm ${lunar.year}`;
+
+                // Display Results
+                resultBody.innerHTML = `
+                    <tr>
+                        <td class="table-cell">${date.toLocaleDateString('vi-VN')}</td>
+                        <td class="table-cell font-medium text-blue-700">${dayOfYear}</td>
+                        <td class="table-cell">${daysRemaining}</td>
+                        <td class="table-cell">${weekNumber}</td>
+                        <td class="table-cell">${yearPercentage}%</td>
+                        <td class="table-cell">${lunarDateString}</td>
+                        <td class="table-cell font-medium text-green-700">${lunar.dayOfYear}</td>
+                        <td class="table-cell">${lunarDaysRemaining}</td>
+                    </tr>
+                `;
+                loadingTable.classList.add('hidden');
+            }, 50);
+        }
+        
+        // --- Gemini API Call ---
+        async function fetchDateInsights() {
+            const dateValue = dateInput.value;
+            if (!dateValue) {
+                geminiOutput.innerHTML = `<p class="text-red-500 text-center">Vui lòng chọn một ngày trước.</p>`;
+                return;
+            }
+
+            geminiResultContainer.classList.remove('hidden');
+            loadingGemini.classList.remove('hidden');
+            geminiOutput.innerHTML = '';
+            
+            const date = new Date(dateValue + 'T00:00:00');
+            const dayOfWeek = date.toLocaleDateString('vi-VN', { weekday: 'long' });
+            const month = date.toLocaleDateString('vi-VN', { month: 'long' });
+            const fullDateString = date.toLocaleDateString('vi-VN', { day: 'numeric', month: 'long', year: 'numeric' });
+
+            // *** PROMPT UPDATED HERE ***
+            const prompt = `Đối với ngày ${fullDateString} (là ${dayOfWeek}):
+
+Hãy cung cấp các thông tin sau bằng tiếng Việt, sử dụng định dạng Markdown, chia thành các đề mục lớn rõ ràng:
+
+## Sự kiện Lịch sử ("Ngày này năm xưa")
+Liệt kê 3-5 sự kiện lịch sử nổi bật hoặc thú vị đã xảy ra vào ngày này trong quá khứ.
+
+## Thông tin Ngày lễ
+Ngày này có phải là một ngày lễ, ngày kỷ niệm quan trọng nào ở Việt Nam hoặc quốc tế không? Nếu có, hãy giải thích ngắn gọn ý nghĩa của nó.
+
+## Gợi ý Hoạt động
+Dựa vào việc đây là ${dayOfWeek} trong ${month}, hãy đưa ra 3 gợi ý về các hoạt động phù hợp (ví dụ: cho gia đình, cặp đôi, hoặc cá nhân) có thể thực hiện ở Việt Nam vào ngày này.
+
+## Khám phá Chiêm tinh & Huyền học
+### Cung Hoàng Đạo
+Cung hoàng đạo tương ứng với ngày này là gì? Nêu một vài đặc điểm nổi bật.
+### Thần số học (Numerology)
+Tính con số chủ đạo của ngày (${fullDateString}) bằng cách cộng tất cả các chữ số lại với nhau và rút gọn về một chữ số (trừ khi là 11, 22). Nêu ý nghĩa của con số đó đối với năng lượng chung của ngày.
+### Thông điệp từ Tarot
+Lá bài Tarot nào trong bộ Ẩn chính (Major Arcana) tương ứng với con số chủ đạo của ngày? Mô tả ngắn gọn thông điệp hoặc lời khuyên của lá bài đó cho ngày hôm nay.
+`;
+
+           try {
+                // *** THAY ĐỔI CHÍNH Ở ĐÂY: Gọi hàm của chúng ta, không gọi API Google ***
+                const response = await fetch('/.netlify/functions/ask-gemini', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: prompt }) // Gửi prompt trong body
+                });
+
+                if (!response.ok) {
+                    const errorResult = await response.json();
+                    throw new Error(errorResult.error || `Yêu cầu thất bại với mã lỗi: ${response.status}`);
+                }
+
+                const result = await response.json();
+                
+                if (result.candidates && result.candidates[0]?.content?.parts[0]?.text) {
+                    const text = result.candidates[0].content.parts[0].text;
+                    geminiOutput.innerHTML = marked.parse(text);
+                } else {
+                    throw new Error("Không nhận được nội dung hợp lệ từ Gemini.");
+                }
+            } catch (error) {
+                console.error("Lỗi:", error);
+                geminiOutput.innerHTML = `<p class="text-red-500 text-center">Đã xảy ra lỗi. Vui lòng thử lại sau. (${error.message})</p>`;
+            } finally {
+                loadingGemini.classList.add('hidden');
+            }
+
+
+        // --- Event Listeners ---
+        dateInput.addEventListener('change', () => {
+            if (dateInput.value) {
+                calculateAndDisplay(dateInput.value);
+            }
+        });
+
+        todayBtn.addEventListener('click', () => {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            const todayString = `${year}-${month}-${day}`;
+            
+            dateInput.value = todayString;
+            calculateAndDisplay(todayString);
+        });
+
+        geminiBtn.addEventListener('click', fetchDateInsights);
+
+        // Initial load with today's date
+        todayBtn.click();
+    </script>
+</body>
+</html>
